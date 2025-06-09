@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chineseTourButton: Button
     private lateinit var englishTourButton: Button
 
-    // --- 藍牙相關 ---
+    // --- BLE ---
     private lateinit var bleScanner: BluetoothLeScanner
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var isScanning = false
@@ -42,7 +42,6 @@ class MainActivity : AppCompatActivity() {
     private val scanPeriod: Long = 8000
     private val scanInterval: Long = 4000
 
-    // --- 優化點：新的資料結構，包含時間戳 ---
     data class BeaconInfo(
         val rssiHistory: MutableList<Int> = mutableListOf(),
         var lastSeenTimestamp: Long = 0L
