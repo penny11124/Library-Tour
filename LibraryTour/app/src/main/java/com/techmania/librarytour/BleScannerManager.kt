@@ -39,6 +39,8 @@ object BleScannerManager {
     private val beaconDataMap = mutableMapOf<String, BeaconInfo>()
     private const val RSSI_HISTORY_SIZE = 5
 
+    private val MIN_RSSI_THRESHOLD = -80
+
     private var _currentArea: String? = null // Private mutable backing property
     val currentArea: String?
         get() = _currentArea // Public read-only property
@@ -144,50 +146,62 @@ object BleScannerManager {
             val rssi = result.rssi
 
             if (name in listOf("ESP32_LibA", "ESP32_LibB", "ESP32_LibC"))  {
-                val beaconInfo = beaconDataMap.getOrPut(name) { BeaconInfo() }
-                beaconInfo.lastSeenTimestamp = System.currentTimeMillis()
-                beaconInfo.rssiHistory.add(rssi)
-                if (beaconInfo.rssiHistory.size > RSSI_HISTORY_SIZE) {
-                    beaconInfo.rssiHistory.removeAt(0)
-                }
-            }
-
-            val now = System.currentTimeMillis()
-            val freshBeacons = beaconDataMap.filter {
-                now - it.value.lastSeenTimestamp < STALE_BEACON_TIMEOUT
-            }
-
-            val strongestBeacon = if (freshBeacons.isNotEmpty()) {
-                freshBeacons.mapValues { it.value.rssiHistory.average().toInt() }
-                    .maxByOrNull { it.value }?.key
-            } else {
-                null
-            }
-
-            val newlyDetectedArea = when (strongestBeacon) {
-                "ESP32_LibA" -> "D"
-                "ESP32_LibB" -> "F"
-                "ESP32_LibC" -> "E"
-                else -> null
-            }
-
-            // Only update and notify if the area has truly changed
-            if (newlyDetectedArea != _currentArea) {
-                Log.d(TAG, "Area change detected: $_currentArea -> $newlyDetectedArea")
-                _currentArea = newlyDetectedArea
-                // Notify all registered listeners on the main thread
-                handler.post {
-                    areaChangeListeners.forEach { listener ->
-                        listener.onAreaChanged(_currentArea)
+                if (rssi >= MIN_RSSI_THRESHOLD) {
+                    val beaconInfo = beaconDataMap.getOrPut(name) { BeaconInfo() }
+                    beaconInfo.lastSeenTimestamp = System.currentTimeMillis()
+                    beaconInfo.rssiHistory.add(rssi)
+                    if (beaconInfo.rssiHistory.size > RSSI_HISTORY_SIZE) {
+                        beaconInfo.rssiHistory.removeAt(0)
                     }
+                    // Log.d(TAG, "Accepted Beacon: $name, RSSI: $rssi, Avg RSSI: ${beaconInfo.rssiHistory.average().toInt()}")
+                } else {
+                    // 如果 RSSI 低於閾值，即使收到了這個 Beacon，也將其從 map 中移除
+                    // 這樣它就不會影響區域判斷
+                    beaconDataMap.remove(name)
+                    // Log.d(TAG, "Rejected Beacon (RSSI too low): $name, RSSI: $rssi")
                 }
             }
+            evaluateCurrentArea()
         }
 
         override fun onScanFailed(errorCode: Int) {
             super.onScanFailed(errorCode)
             Log.e(TAG, "BLE scan failed, error code: $errorCode")
             isScanning = false
+        }
+    }
+
+    private fun evaluateCurrentArea(){
+        val now = System.currentTimeMillis()
+        val freshAndStrongBeacons = beaconDataMap.filter { entry ->
+            val beaconInfo = entry.value
+            val averageRssi = if (beaconInfo.rssiHistory.isNotEmpty()) beaconInfo.rssiHistory.average() else Double.NEGATIVE_INFINITY
+            (now - beaconInfo.lastSeenTimestamp < STALE_BEACON_TIMEOUT) && (averageRssi >= MIN_RSSI_THRESHOLD)
+        }.toMutableMap() // 轉為 mutableMap 方便後續使用
+
+        val strongestBeacon = if (freshAndStrongBeacons.isNotEmpty()) {
+            freshAndStrongBeacons.mapValues { it.value.rssiHistory.average().toInt() }
+                .maxByOrNull { it.value }?.key
+        } else {
+            null
+        }
+
+        val newlyDetectedArea = when (strongestBeacon) {
+            "ESP32_LibA" -> "D"
+            "ESP32_LibB" -> "F"
+            "ESP32_LibC" -> "E"
+            else -> null
+        }
+
+        if (newlyDetectedArea != _currentArea) {
+            Log.d(TAG, "Area change detected: $_currentArea -> $newlyDetectedArea")
+            _currentArea = newlyDetectedArea
+            // Notify all registered listeners on the main thread
+            handler.post {
+                areaChangeListeners.forEach { listener ->
+                    listener.onAreaChanged(_currentArea)
+                }
+            }
         }
     }
 }
