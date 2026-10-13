@@ -1,6 +1,6 @@
 # NTHU Library Tour：BLE Beacon 室內定位語音導覽 App
 
-> 走2025 Wireless Network Final Project ── 一款以 ESP32 BLE Beacon 進行室內區域定位的 Android 圖書館導覽 App。靠近導覽點時自動顯示該區域的介紹與照片，提供中英雙語語音導覽，並在館內平面圖上標示目前位置。
+> 2025 Wireless Network Final Project ── 一款以 ESP32 BLE Beacon 進行室內區域定位的 Android 圖書館導覽 App。靠近導覽點時自動顯示該區域的介紹與照片，提供中英雙語語音導覽，並在館內平面圖上標示目前位置。
 
 ![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin&logoColor=white)
